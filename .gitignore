@@ -1,0 +1,30 @@
+# --- Backend ---
+Backend/target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# --- Frontend ---
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.vite/
+
+# --- Environment (secrets) ---
+.env
+.env.local
+*.env
+
+# --- IDE / OS ---
+.idea/
+*.iml
+.vscode/
+.antigravity/
+.antigravity-ide/
+.classpath
+.project
+.settings/
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
