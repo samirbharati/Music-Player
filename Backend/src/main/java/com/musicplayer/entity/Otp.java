@@ -24,8 +24,11 @@ public class Otp {
     @Column(nullable = false)
     private String email;
 
-    @Column(nullable = false, length = 6)
-    private String otpCode;
+    @Column(nullable = false, length = 32)
+    private String salt;
+
+    @Column(nullable = false, length = 64, name = "code_hash")
+    private String codeHash;
 
     @Column(nullable = false)
     private LocalDateTime expiryTime;

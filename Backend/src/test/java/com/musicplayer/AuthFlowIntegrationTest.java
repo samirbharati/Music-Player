@@ -4,16 +4,24 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.musicplayer.repository.OtpRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -30,14 +38,24 @@ class AuthFlowIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @MockBean
+    private JavaMailSender mailSender;
+
+    private static final Pattern OTP_PATTERN = Pattern.compile("(\\d{6})");
+
     private String requestOtp(String email) throws Exception {
+        reset(mailSender);
         mvc.perform(post("/api/auth/send-otp")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + email + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("OTP sent successfully"));
-        return otpRepository.findTopByEmailOrderByExpiryTimeDesc(email)
-                .orElseThrow().getOtpCode();
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(captor.capture());
+        Matcher matcher = OTP_PATTERN.matcher(captor.getValue().getText());
+        assertThat(matcher.find()).isTrue();
+        return matcher.group(1);
     }
 
     private String register(String username, String email, String password, String otp) throws Exception {
@@ -58,6 +76,17 @@ class AuthFlowIntegrationTest {
     void registrationLoginAndPlaylistOwnership() throws Exception {
         // User A
         String otpA = requestOtp("alice@test.com");
+
+        // OTP is stored as a salted hash, never plaintext
+        assertThat(otpRepository.findTopByEmailOrderByExpiryTimeDesc("alice@test.com"))
+                .isPresent()
+                .get()
+                .satisfies(otp -> {
+                    assertThat(otp.getCodeHash()).isNotEqualTo(otpA);
+                    assertThat(otp.getCodeHash()).doesNotContain(otpA);
+                    assertThat(otp.getCodeHash()).matches("[0-9a-f]{64}");
+                });
+
         String tokenA = register("alice", "alice@test.com", "secret123", otpA);
 
         // Login flow

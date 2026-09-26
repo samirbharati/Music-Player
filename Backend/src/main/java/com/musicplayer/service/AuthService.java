@@ -22,6 +22,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.security.SecureRandom;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 @Service
 @RequiredArgsConstructor
@@ -59,12 +63,15 @@ public class AuthService {
 
         // Generate 6 digit OTP
         String otpCode = String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
+        String salt = generateSalt();
+        String codeHash = hashOtp(salt, otpCode);
 
-        // Save/Update OTP in DB
+        // Save/Update OTP in DB (only the salted hash is stored, never plaintext)
         otpRepository.deleteByEmail(email);
         Otp otp = Otp.builder()
                 .email(email)
-                .otpCode(otpCode)
+                .salt(salt)
+                .codeHash(codeHash)
                 .expiryTime(LocalDateTime.now().plusMinutes(5))
                 .build();
         otpRepository.save(otp);
@@ -87,7 +94,7 @@ public class AuthService {
             throw new RuntimeException("Too many incorrect attempts. Please request a new OTP.");
         }
 
-        if (!otp.getOtpCode().equals(request.getOtp())) {
+        if (!matchesOtp(otp, request.getOtp())) {
             recordFailedAttempt(otp.getId());
             throw new RuntimeException("Invalid OTP code");
         }
@@ -120,6 +127,31 @@ public class AuthService {
                 .email(user.getEmail())
                 .role(user.getRole())
                 .build();
+    }
+
+    private String generateSalt() {
+        byte[] salt = new byte[16];
+        SECURE_RANDOM.nextBytes(salt);
+        return HexFormat.of().formatHex(salt);
+    }
+
+    private String hashOtp(String salt, String otpCode) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(
+                    digest.digest((salt + otpCode).getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm not available", e);
+        }
+    }
+
+    private boolean matchesOtp(Otp otp, String submitted) {
+        if (otp.getSalt() == null || otp.getCodeHash() == null) {
+            return false;
+        }
+        byte[] expected = HexFormat.of().parseHex(otp.getCodeHash());
+        byte[] actual = HexFormat.of().parseHex(hashOtp(otp.getSalt(), submitted));
+        return MessageDigest.isEqual(expected, actual);
     }
 
     // Persist a failed attempt in its own transaction so it survives the

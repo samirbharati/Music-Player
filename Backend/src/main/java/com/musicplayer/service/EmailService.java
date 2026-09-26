@@ -14,7 +14,7 @@ public class EmailService {
     private final JavaMailSender mailSender;
 
     public void sendVerificationOtp(String to, String otp) {
-        log.info("SIMULATED EMAIL: Sending OTP {} to {}", otp, to);
+        log.info("SIMULATED EMAIL: Sending verification code to {}", to);
         
         try {
             SimpleMailMessage message = new SimpleMailMessage();
