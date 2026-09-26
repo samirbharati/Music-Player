@@ -209,8 +209,11 @@ public class MusicService {
         String language = getTextSafe(node, "language");
         String duration = getTextSafe(node, "duration");
 
-        // Artist
+        // Artist — support both "primaryArtists" and the "artists.primary" map shapes
         String artistName = getTextSafe(node, "primaryArtists");
+        if (artistName.isEmpty()) {
+            artistName = getArtistNames(node);
+        }
         if (artistName.isEmpty()) {
             artistName = "Unknown Artist";
         }
@@ -275,6 +278,22 @@ public class MusicService {
     private String getTextSafe(JsonNode node, String field) {
         if (node != null && node.has(field) && !node.get(field).isNull()) {
             return node.get(field).asText();
+        }
+        return "";
+    }
+
+    private String getArtistNames(JsonNode node) {
+        if (node != null && node.has("artists")
+                && node.get("artists").has("primary")
+                && node.get("artists").get("primary").isArray()) {
+            List<String> names = new ArrayList<>();
+            for (JsonNode artist : node.get("artists").get("primary")) {
+                String n = getTextSafe(artist, "name");
+                if (!n.isEmpty()) {
+                    names.add(n);
+                }
+            }
+            return String.join(", ", names);
         }
         return "";
     }
