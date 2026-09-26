@@ -1,0 +1,58 @@
+package com.musicplayer.config;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.env.EnvironmentPostProcessor;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.MapPropertySource;
+
+import java.net.URI;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Translates a PaaS-style DATABASE_URL (e.g. postgres://user:pass@host:5432/db)
+ * into Spring's spring.datasource.url/username/password properties. This makes the
+ * app deployable on Render, Heroku, Railway, etc. without any extra config.
+ */
+public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProcessor {
+
+    @Override
+    public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
+        String databaseUrl = environment.getProperty("DATABASE_URL");
+        if (databaseUrl == null || databaseUrl.isBlank()) {
+            return;
+        }
+        try {
+            URI uri = URI.create(databaseUrl);
+            String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+            if (!scheme.startsWith("postgres")) {
+                return;
+            }
+            String host = uri.getHost();
+            int port = uri.getPort() > 0 ? uri.getPort() : 5432;
+            String path = uri.getPath() == null ? "" : uri.getPath().replaceFirst("^/", "");
+            String userInfo = uri.getUserInfo();
+            String query = uri.getQuery();
+
+            String username = "";
+            String password = "";
+            if (userInfo != null) {
+                String[] parts = userInfo.split(":", 2);
+                username = parts[0];
+                if (parts.length > 1) {
+                    password = parts[1];
+                }
+            }
+
+            String jdbcQuery = (query == null || query.isBlank()) ? "sslmode=require" : query;
+            Map<String, Object> props = new LinkedHashMap<>();
+            props.put("spring.datasource.url", "jdbc:postgresql://" + host + ":" + port + "/" + path + "?" + jdbcQuery);
+            props.put("spring.datasource.username", username);
+            props.put("spring.datasource.password", password);
+            props.put("spring.datasource.driver-class-name", "org.postgresql.Driver");
+            environment.getPropertySources().addFirst(new MapPropertySource("databaseUrlProcessor", props));
+        } catch (RuntimeException e) {
+            // Never fail startup because of a malformed DATABASE_URL; fall through to DB_URL/DB_USERNAME
+        }
+    }
+}

@@ -18,9 +18,9 @@ public interface RecentlyPlayedRepository extends JpaRepository<RecentlyPlayed, 
     Optional<RecentlyPlayed> findByUserAndSongId(User user, String songId);
 
     @Modifying(flushAutomatically = true)
-    @Query(value = "DELETE rp FROM recently_played rp WHERE rp.user_id = :userId AND rp.id NOT IN (" +
-           "SELECT id FROM (SELECT rp2.id FROM recently_played rp2 WHERE rp2.user_id = :userId " +
-           "ORDER BY rp2.played_at DESC LIMIT 50) AS tmp)",
+    @Query(value = "DELETE FROM recently_played rp WHERE rp.user_id = :userId AND rp.id NOT IN (" +
+           "SELECT rp2.id FROM recently_played rp2 WHERE rp2.user_id = :userId " +
+           "ORDER BY rp2.played_at DESC LIMIT 50)",
            nativeQuery = true)
     void keepOnlyLatest50(@Param("userId") Long userId);
 }
