@@ -9,6 +9,11 @@ services:
     branch: main
     healthCheckPath: /api/health
     autoDeploy: true
+    buildFilter:
+      paths:
+        - Backend/**
+        - Dockerfile
+        - render.yaml
     envVars:
       - key: PORT
         value: 8080
