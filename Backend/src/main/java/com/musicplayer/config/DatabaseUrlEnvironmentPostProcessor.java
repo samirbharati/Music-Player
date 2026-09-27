@@ -23,8 +23,10 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         String databaseUrl = environment.getProperty("DATABASE_URL");
         if (databaseUrl == null || databaseUrl.isBlank()) {
+            System.err.println("[DatabaseUrlProcessor] DATABASE_URL is MISSING - falling back to DB_URL/default");
             return;
         }
+        System.err.println("[DatabaseUrlProcessor] DATABASE_URL found, translating to JDBC props");
         try {
             URI uri = URI.create(databaseUrl);
             String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
@@ -48,11 +50,13 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
             }
 
             String jdbcQuery = (query == null || query.isBlank()) ? "sslmode=require" : query;
+            String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + "/" + path + "?" + jdbcQuery;
             Map<String, Object> props = new LinkedHashMap<>();
-            props.put("DB_URL", "jdbc:postgresql://" + host + ":" + port + "/" + path + "?" + jdbcQuery);
+            props.put("DB_URL", jdbcUrl);
             props.put("DB_USERNAME", username);
             props.put("DB_PASSWORD", password);
             environment.getPropertySources().addFirst(new MapPropertySource("databaseUrlProcessor", props));
+            System.err.println("[DatabaseUrlProcessor] DB_URL -> " + jdbcUrl);
         } catch (RuntimeException e) {
             // Never fail startup because of a malformed DATABASE_URL; fall through to DB_URL/DB_USERNAME
         }
