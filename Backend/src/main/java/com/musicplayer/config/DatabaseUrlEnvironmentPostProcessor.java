@@ -11,8 +11,11 @@ import java.util.Map;
 
 /**
  * Translates a PaaS-style DATABASE_URL (e.g. postgres://user:pass@host:5432/db)
- * into Spring's spring.datasource.url/username/password properties. This makes the
- * app deployable on Render, Heroku, Railway, etc. without any extra config.
+ * into JDBC-friendly DB_URL/DB_USERNAME/DB_PASSWORD raw properties. The Spring
+ * datasource binding in application.properties references them via ${DB_URL:...}
+ * placeholders, so the translation is applied regardless of property source
+ * ordering at startup. This makes the app deployable on Render, Heroku, Railway,
+ * etc. without any extra config.
  */
 public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProcessor {
 
@@ -46,10 +49,9 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
             String jdbcQuery = (query == null || query.isBlank()) ? "sslmode=require" : query;
             Map<String, Object> props = new LinkedHashMap<>();
-            props.put("spring.datasource.url", "jdbc:postgresql://" + host + ":" + port + "/" + path + "?" + jdbcQuery);
-            props.put("spring.datasource.username", username);
-            props.put("spring.datasource.password", password);
-            props.put("spring.datasource.driver-class-name", "org.postgresql.Driver");
+            props.put("DB_URL", "jdbc:postgresql://" + host + ":" + port + "/" + path + "?" + jdbcQuery);
+            props.put("DB_USERNAME", username);
+            props.put("DB_PASSWORD", password);
             environment.getPropertySources().addFirst(new MapPropertySource("databaseUrlProcessor", props));
         } catch (RuntimeException e) {
             // Never fail startup because of a malformed DATABASE_URL; fall through to DB_URL/DB_USERNAME
